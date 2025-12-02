@@ -5,23 +5,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import type { AnyAutomaton, SimulationResult } from '@/lib/types';
-import { simulateAutomaton } from '@/lib/automata';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { CheckCircle2, XCircle, Play, FileText, Bot } from 'lucide-react';
+import { CheckCircle2, XCircle, Play, FileText, Bot, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
+import { Slider } from './ui/slider';
 
 type SimulationPanelProps = {
   automaton: AnyAutomaton | null;
+  result: SimulationResult | null;
+  trace: string[];
+  currentStep: number;
+  onSimulate: (input: string) => void;
+  onStepChange: (step: number) => void;
 };
 
-export function SimulationPanel({ automaton }: SimulationPanelProps) {
+export function SimulationPanel({ 
+  automaton, 
+  result, 
+  trace,
+  currentStep,
+  onSimulate, 
+  onStepChange 
+}: SimulationPanelProps) {
   const [inputString, setInputString] = useState('');
-  const [result, setResult] = useState<SimulationResult | null>(null);
 
   const handleSimulate = () => {
-    if (!automaton) return;
-    const simulationResult = simulateAutomaton(automaton, inputString);
-    setResult(simulationResult);
+    onSimulate(inputString);
   };
 
   return (
@@ -72,10 +81,40 @@ export function SimulationPanel({ automaton }: SimulationPanelProps) {
                     Transition Trace
                 </h4>
                 <ScrollArea className="h-48 w-full rounded-md border p-4 font-code text-sm">
-                {result.trace.map((step, index) => (
-                    <p key={index}>{step}</p>
+                {trace.map((step, index) => (
+                    <p key={index} className={`rounded-sm px-1 py-0.5 ${index === currentStep ? 'bg-yellow-200' : ''}`}>
+                      {step}
+                    </p>
                 ))}
                 </ScrollArea>
+                {trace.length > 0 && (
+                    <div className="flex items-center justify-center space-x-2 pt-2">
+                        <Button 
+                            variant="outline" 
+                            size="icon" 
+                            onClick={() => onStepChange(currentStep - 1)} 
+                            disabled={currentStep === 0}
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <Slider
+                            min={0}
+                            max={trace.length - 1}
+                            step={1}
+                            value={[currentStep]}
+                            onValueChange={(value) => onStepChange(value[0])}
+                            className="w-64"
+                        />
+                        <Button 
+                            variant="outline" 
+                            size="icon" 
+                            onClick={() => onStepChange(currentStep + 1)} 
+                            disabled={currentStep === trace.length - 1}
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                    </div>
+                )}
             </div>
           </div>
         )}

@@ -4,21 +4,31 @@ import React, { useState, useMemo } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import dynamic from 'next/dynamic';
 import { AutomatonDefinitionForm, automatonSchema } from '@/components/automaton-definition-form';
 import { SimulationPanel } from '@/components/simulation-panel';
 import { NfaToDfaConverter } from '@/components/nfa-to-dfa-converter';
-import type { AnyAutomaton, AutomatonDefinition } from '@/lib/types';
-import { automatonToDefinition, parseAutomatonDefinition } from '@/lib/automata';
+import type { AnyAutomaton, AutomatonDefinition, SimulationResult } from '@/lib/types';
+import { automatonToDefinition, parseAutomatonDefinition, simulateAutomaton } from '@/lib/automata';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from './ui/button';
 import { ExampleSelector } from './example-selector';
 import { automatonExamples } from '@/lib/examples';
+
+const GraphVisualization = dynamic(() => import('@/components/graph-visualization').then(mod => mod.GraphVisualization), {
+  ssr: false,
+  loading: () => <p>Loading graph...</p>
+});
 
 const defaultValues = automatonExamples[0].definition;
 
 export function AutomatonWorkspace() {
   const { toast } = useToast();
   const [activeAutomaton, setActiveAutomaton] = useState<AnyAutomaton | null>(null);
+  const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
+  const [simulationTrace, setSimulationTrace] = useState<string[]>([]);
+  const [currentStep, setCurrentStep] = useState(0);
+
 
   const form = useForm<z.infer<typeof automatonSchema>>({
     resolver: zodResolver(automatonSchema),
@@ -45,6 +55,9 @@ export function AutomatonWorkspace() {
     try {
       const parsed = parseAutomatonDefinition(data);
       setActiveAutomaton(parsed);
+      setSimulationResult(null);
+      setSimulationTrace([]);
+      setCurrentStep(0);
       toast({
         title: 'Automaton Loaded',
         description: `${parsed.type} has been successfully loaded for simulation.`,
@@ -59,6 +72,14 @@ export function AutomatonWorkspace() {
     }
   };
 
+  const handleSimulate = (inputString: string) => {
+    if (!activeAutomaton) return;
+    const result = simulateAutomaton(activeAutomaton, inputString);
+    setSimulationResult(result);
+    setSimulationTrace(result.trace);
+    setCurrentStep(0);
+  };
+
   const loadAutomaton = (automaton: AnyAutomaton | AutomatonDefinition) => {
     const definition = 'type' in automaton && 'states' in automaton && typeof automaton.states === 'string'
       ? automaton
@@ -70,6 +91,14 @@ export function AutomatonWorkspace() {
         onSubmit(definition);
     }, 0);
   };
+  
+  const activeState = useMemo(() => {
+    if (simulationTrace.length > 0 && currentStep < simulationTrace.length) {
+      const match = simulationTrace[currentStep].match(/Current state: (\w+)/);
+      return match ? match[1] : null;
+    }
+    return null;
+  }, [simulationTrace, currentStep]);
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
@@ -81,7 +110,15 @@ export function AutomatonWorkspace() {
         </Button>
       </div>
       <div className="flex flex-col gap-6">
-        <SimulationPanel automaton={activeAutomaton} />
+        <GraphVisualization automaton={parsedAutomaton} activeState={activeState} />
+        <SimulationPanel
+          automaton={activeAutomaton}
+          result={simulationResult}
+          trace={simulationTrace}
+          currentStep={currentStep}
+          onSimulate={handleSimulate}
+          onStepChange={setCurrentStep}
+        />
         <NfaToDfaConverter nfa={parsedAutomaton?.type === 'NFA' ? parsedAutomaton : null} loadAutomaton={loadAutomaton} />
       </div>
     </div>
