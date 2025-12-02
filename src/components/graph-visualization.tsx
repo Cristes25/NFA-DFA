@@ -53,24 +53,40 @@ const getLayout = (automaton: AnyAutomaton, width: number, height: number): { no
     nodeMap[stateId] = node;
   });
 
-  // 2. Create links from transitions
-  const transitions = automaton.transitions;
-  transitions.forEach(({ from, to, input }) => {
+  // 2. Group transitions and create links
+  const linkGroups: { [key: string]: { source: GraphNode; target: GraphNode; inputs: string[] } } = {};
+
+  automaton.transitions.forEach(({ from, to, input }) => {
     const source = nodeMap[from];
     const target = nodeMap[to];
+
     if (source && target) {
-      const isReversed = transitions.some(t => t.from === to && t.to === from);
-      links.push({
-        source,
-        target,
-        label: input || 'ε',
-        isSelfLoop: from === to,
-        isReversed,
-      });
+      const key = `${from}-${to}`;
+      if (!linkGroups[key]) {
+        linkGroups[key] = {
+          source,
+          target,
+          inputs: [],
+        };
+      }
+      linkGroups[key].inputs.push(input || 'ε');
     }
   });
 
-  return { nodes, links };
+  const finalLinks: GraphLink[] = Object.values(linkGroups).map(group => {
+    const { source, target, inputs } = group;
+    const isReversed = !!linkGroups[`${target.id}-${source.id}`];
+
+    return {
+      source,
+      target,
+      label: inputs.join(', '),
+      isSelfLoop: source.id === target.id,
+      isReversed,
+    };
+  });
+
+  return { nodes, links: finalLinks };
 };
 
 // --- REACT COMPONENT ---
